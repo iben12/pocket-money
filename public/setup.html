@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Kids</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="back">←</a>
+    <h1>Manage Kids</h1>
+    <button class="action" onclick="openModal()">+ Add</button>
+  </header>
+
+  <div class="content">
+    <div id="list"></div>
+  </div>
+
+  <!-- Add / Edit kid modal -->
+  <div class="overlay" id="overlay" onclick="maybeClose(event)">
+    <div class="modal">
+      <h2 id="modal-title">Add Kid</h2>
+      <form id="kid-form" onsubmit="submitKid(event)">
+        <input type="hidden" id="edit-id">
+        <div class="fg">
+          <label>Name</label>
+          <input type="text" id="f-name" placeholder="Kid's name" required>
+        </div>
+        <div class="fg">
+          <label>Avatar</label>
+          <div class="emoji-grid" id="emoji-picker"></div>
+        </div>
+        <div class="fg">
+          <label>Color</label>
+          <div class="swatch-row" id="swatch-picker"></div>
+        </div>
+        <button type="submit" class="btn">Save</button>
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const EMOJIS = ['😊','😎','🐱','🐶','🦊','🐼','🦁','🐸','🌟','🚀','🎮','🎨','🏆','🦄','⚽'];
+    const COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ef4444','#14b8a6'];
+
+    let selectedEmoji = EMOJIS[0];
+    let selectedColor = COLORS[0];
+    let kidsMap = {};
+
+    // Build pickers
+    const ep = document.getElementById('emoji-picker');
+    ep.innerHTML = EMOJIS.map(e => `<span class="emoji-opt" data-e="${e}">${e}</span>`).join('');
+    ep.addEventListener('click', ev => {
+      const t = ev.target.closest('.emoji-opt');
+      if (!t) return;
+      selectedEmoji = t.dataset.e;
+      ep.querySelectorAll('.emoji-opt').forEach(el => el.classList.toggle('sel', el.dataset.e === selectedEmoji));
+    });
+
+    const sp = document.getElementById('swatch-picker');
+    sp.innerHTML = COLORS.map(c => `<span class="swatch" data-c="${c}" style="background:${c}"></span>`).join('');
+    sp.addEventListener('click', ev => {
+      const t = ev.target.closest('.swatch');
+      if (!t) return;
+      selectedColor = t.dataset.c;
+      sp.querySelectorAll('.swatch').forEach(el => el.classList.toggle('sel', el.dataset.c === selectedColor));
+    });
+
+    function setEmoji(e) {
+      selectedEmoji = e;
+      ep.querySelectorAll('.emoji-opt').forEach(el => el.classList.toggle('sel', el.dataset.e === e));
+    }
+
+    function setColor(c) {
+      selectedColor = c;
+      sp.querySelectorAll('.swatch').forEach(el => el.classList.toggle('sel', el.dataset.c === c));
+    }
+
+    setEmoji(EMOJIS[0]);
+    setColor(COLORS[0]);
+
+    async function load() {
+      const res = await fetch('/api/kids');
+      const kids = await res.json();
+      kidsMap = Object.fromEntries(kids.map(k => [k.id, k]));
+
+      const el = document.getElementById('list');
+      if (!kids.length) {
+        el.innerHTML = `<div class="empty"><div class="icon">👶</div><p>No kids yet. Hit <strong>+ Add</strong> to create one.</p></div>`;
+        return;
+      }
+      el.innerHTML = kids.map(k => `
+        <div class="kid-item">
+          <span class="avatar">${k.avatar}</span>
+          <span class="name">${escape(k.name)}</span>
+          <span class="dot" style="background:${k.color}"></span>
+          <button class="icon-btn" onclick="openModal(${k.id})" title="Edit">✏️</button>
+          <button class="icon-btn" onclick="deleteKid(${k.id})" title="Delete">🗑</button>
+        </div>`
+      ).join('');
+    }
+
+    function escape(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function openModal(id) {
+      const kid = id != null ? kidsMap[id] : null;
+      document.getElementById('modal-title').textContent = kid ? 'Edit Kid' : 'Add Kid';
+      document.getElementById('edit-id').value = kid ? kid.id : '';
+      document.getElementById('f-name').value = kid ? kid.name : '';
+      setEmoji(kid ? kid.avatar : EMOJIS[0]);
+      setColor(kid ? kid.color : COLORS[0]);
+      document.getElementById('overlay').classList.add('open');
+      setTimeout(() => document.getElementById('f-name').focus(), 50);
+    }
+
+    function closeModal() {
+      document.getElementById('overlay').classList.remove('open');
+    }
+
+    function maybeClose(e) {
+      if (e.target.id === 'overlay') closeModal();
+    }
+
+    async function submitKid(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      const body = JSON.stringify({
+        name: document.getElementById('f-name').value.trim(),
+        color: selectedColor,
+        avatar: selectedEmoji
+      });
+      const headers = { 'Content-Type': 'application/json' };
+      const res = id
+        ? await fetch(`/api/kids/${id}`, { method: 'PUT', headers, body })
+        : await fetch('/api/kids', { method: 'POST', headers, body });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert('Save failed: ' + (err.error ?? res.status));
+        return;
+      }
+      closeModal();
+      load();
+    }
+
+    async function deleteKid(id) {
+      const kid = kidsMap[id];
+      if (!confirm(`Delete ${kid?.name ?? 'this kid'} and all their transactions?`)) return;
+      const res = await fetch(`/api/kids/${id}`, { method: 'DELETE' });
+      if (!res.ok) { alert('Delete failed: ' + res.status); return; }
+      load();
+    }
+
+    load();
+  </script>
+</body>
+</html>
