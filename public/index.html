@@ -1,41 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pocket Money</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <header class="header">
-    <h1>💰 Pocket Money</h1>
-    <a href="setup.html" class="action">Manage Kids</a>
-  </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pocket Money</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>💰 Pocket Money</h1>
+      <a href="setup.html" class="action">Manage Kids</a>
+    </header>
 
-  <div class="content">
-    <div id="list"></div>
-  </div>
+    <div class="content">
+      <div id="list"></div>
+    </div>
 
-  <script>
-    async function load() {
-      const res = await fetch('/api/kids');
-      const kids = await res.json();
-      const el = document.getElementById('list');
+    <script>
+      async function load() {
+        const res = await fetch("/api/kids");
+        const kids = await res.json();
+        const el = document.getElementById("list");
 
-      if (!kids.length) {
-        el.innerHTML = `
+        if (!kids.length) {
+          el.innerHTML = `
           <div class="empty">
             <div class="icon">🐣</div>
             <p>No kids yet.<br><a href="setup.html">Add a kid</a> to get started.</p>
           </div>`;
-        return;
-      }
+          return;
+        }
 
-      el.innerHTML = kids.map(k => {
-        const b = k.balance;
-        const cls = b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero';
-        const sign = b > 0 ? '+' : '';
-        return `
+        el.innerHTML = kids
+          .map((k) => {
+            const b = k.balance;
+            const cls = b > 0 ? "pos" : b < 0 ? "neg" : "zero";
+            const sign = b > 0 ? "+" : "";
+            return `
           <a href="account.html?id=${k.id}" class="kid-card" style="border-left-color:${k.color}">
             <span class="avatar">${k.avatar}</span>
             <div class="info">
@@ -44,10 +49,11 @@
             </div>
             <span class="balance ${cls}">${sign}${b.toFixed(2)}</span>
           </a>`;
-      }).join('');
-    }
+          })
+          .join("");
+      }
 
-    load();
-  </script>
-</body>
+      load();
+    </script>
+  </body>
 </html>

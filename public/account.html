@@ -1,189 +1,198 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Account</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <header class="header" id="hdr">
-    <a href="/" class="back">←</a>
-    <h1 id="hdr-title">Account</h1>
-    <button class="action" onclick="openModal()">+ Add</button>
-  </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Account</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="header" id="hdr">
+      <a href="/" class="back">←</a>
+      <h1 id="hdr-title">Account</h1>
+      <button class="action" onclick="openModal()">+ Add</button>
+    </header>
 
-  <div class="acct-info" id="acct-info">
-    <div class="avatar" id="kid-avatar"></div>
-    <div class="name" id="kid-name"></div>
-    <div class="bal-label">Balance</div>
-    <div class="bal" id="kid-bal"></div>
-  </div>
-
-  <div class="content">
-    <div id="tx-list"></div>
-  </div>
-
-  <!-- Add transaction modal -->
-  <div class="overlay" id="overlay" onclick="maybeClose(event)">
-    <div class="modal">
-      <h2>Add Transaction</h2>
-      <form id="tx-form" onsubmit="submitTx(event)">
-        <div class="fg">
-          <label>Category</label>
-          <div class="cat-grid">
-            <button type="button" class="cat-btn income sel" data-cat="chore">
-              <span class="sign">+</span><span>🧹 Chore</span>
-            </button>
-            <button type="button" class="cat-btn income" data-cat="pocket_money">
-              <span class="sign">+</span><span>💵 Pocket Money</span>
-            </button>
-            <button type="button" class="cat-btn expense" data-cat="purchase">
-              <span class="sign">−</span><span>🛍️ Purchase</span>
-            </button>
-            <button type="button" class="cat-btn expense" data-cat="cash_payout">
-              <span class="sign">−</span><span>💸 Cash Payout</span>
-            </button>
-          </div>
-          <input type="hidden" name="category" value="chore">
-        </div>
-        <div class="fg">
-          <label>Amount</label>
-          <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required>
-        </div>
-        <div class="fg">
-          <label>Memo</label>
-          <input type="text" name="memo" placeholder="e.g. Cleaned bedroom">
-        </div>
-        <div class="fg">
-          <label>Date</label>
-          <input type="date" name="date" required>
-        </div>
-        <button type="submit" class="btn">Save</button>
-        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      </form>
+    <div class="acct-info" id="acct-info">
+      <div class="avatar" id="kid-avatar"></div>
+      <div class="name" id="kid-name"></div>
+      <div class="bal-label">Balance</div>
+      <div class="bal" id="kid-bal"></div>
     </div>
-  </div>
 
-  <script>
-    const LABELS = {
-      chore: 'Chore',
-      pocket_money: 'Pocket Money',
-      purchase: 'Purchase',
-      cash_payout: 'Cash Payout'
-    };
+    <div class="content">
+      <div id="tx-list"></div>
+    </div>
 
-    document.querySelector('.cat-grid').addEventListener('click', e => {
-      const btn = e.target.closest('.cat-btn');
-      if (!btn) return;
-      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('sel'));
-      btn.classList.add('sel');
-      document.querySelector('[name="category"]').value = btn.dataset.cat;
-    });
+    <!-- Add transaction modal -->
+    <div class="overlay" id="overlay" onclick="maybeClose(event)">
+      <div class="modal">
+        <h2>Add Transaction</h2>
+        <form id="tx-form" onsubmit="submitTx(event)">
+          <div class="fg">
+            <label>Category</label>
+            <div class="cat-grid">
+              <button type="button" class="cat-btn income sel" data-cat="chore">
+                <span class="sign">+</span><span>🧹 Chore</span>
+              </button>
+              <button type="button" class="cat-btn income" data-cat="pocket_money">
+                <span class="sign">+</span><span>💵 Pocket Money</span>
+              </button>
+              <button type="button" class="cat-btn expense" data-cat="purchase">
+                <span class="sign">−</span><span>🛍️ Purchase</span>
+              </button>
+              <button type="button" class="cat-btn expense" data-cat="cash_payout">
+                <span class="sign">−</span><span>💸 Cash Payout</span>
+              </button>
+            </div>
+            <input type="hidden" name="category" value="chore" />
+          </div>
+          <div class="fg">
+            <label>Amount</label>
+            <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required />
+          </div>
+          <div class="fg">
+            <label>Memo</label>
+            <input type="text" name="memo" placeholder="e.g. Cleaned bedroom" />
+          </div>
+          <div class="fg">
+            <label>Date</label>
+            <input type="date" name="date" required />
+          </div>
+          <button type="submit" class="btn">Save</button>
+          <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        </form>
+      </div>
+    </div>
 
-    const params = new URLSearchParams(location.search);
-    const kidId = params.get('id');
-    if (!kidId) location.href = '/';
+    <script>
+      const LABELS = {
+        chore: "Chore",
+        pocket_money: "Pocket Money",
+        purchase: "Purchase",
+        cash_payout: "Cash Payout",
+      };
 
-    document.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
+      document.querySelector(".cat-grid").addEventListener("click", (e) => {
+        const btn = e.target.closest(".cat-btn");
+        if (!btn) return;
+        document.querySelectorAll(".cat-btn").forEach((b) => b.classList.remove("sel"));
+        btn.classList.add("sel");
+        document.querySelector('[name="category"]').value = btn.dataset.cat;
+      });
 
-    async function load() {
-      const [kidsRes, txRes] = await Promise.all([
-        fetch('/api/kids'),
-        fetch(`/api/transactions?kid_id=${kidId}`)
-      ]);
-      const kids = await kidsRes.json();
-      const txs = await txRes.json();
+      const params = new URLSearchParams(location.search);
+      const kidId = params.get("id");
+      if (!kidId) location.href = "/";
 
-      const kid = kids.find(k => String(k.id) === String(kidId));
-      if (!kid) { location.href = '/'; return; }
+      document.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
 
-      document.getElementById('hdr').style.background = kid.color;
-      document.getElementById('hdr-title').textContent = kid.name;
-      document.getElementById('kid-avatar').textContent = kid.avatar;
-      document.getElementById('kid-name').textContent = kid.name;
-      document.getElementById('acct-info').style.borderTop = `4px solid ${kid.color}`;
+      async function load() {
+        const [kidsRes, txRes] = await Promise.all([fetch("/api/kids"), fetch(`/api/transactions?kid_id=${kidId}`)]);
+        const kids = await kidsRes.json();
+        const txs = await txRes.json();
 
-      const b = kid.balance;
-      const balEl = document.getElementById('kid-bal');
-      balEl.textContent = (b >= 0 ? '+' : '') + b.toFixed(2);
-      balEl.className = 'bal ' + (b > 0 ? 'pos' : b < 0 ? 'neg' : 'zero');
+        const kid = kids.find((k) => String(k.id) === String(kidId));
+        if (!kid) {
+          location.href = "/";
+          return;
+        }
 
-      const el = document.getElementById('tx-list');
-      if (!txs.length) {
-        el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No transactions yet.</p></div>`;
-        return;
-      }
-      el.innerHTML = txs.map(t => {
-        const pos = t.amount >= 0;
-        const sign = pos ? '+' : '';
-        return `
+        document.getElementById("hdr").style.background = kid.color;
+        document.getElementById("hdr-title").textContent = kid.name;
+        document.getElementById("kid-avatar").textContent = kid.avatar;
+        document.getElementById("kid-name").textContent = kid.name;
+        document.getElementById("acct-info").style.borderTop = `4px solid ${kid.color}`;
+
+        const b = kid.balance;
+        const balEl = document.getElementById("kid-bal");
+        balEl.textContent = (b >= 0 ? "+" : "") + b.toFixed(2);
+        balEl.className = "bal " + (b > 0 ? "pos" : b < 0 ? "neg" : "zero");
+
+        const el = document.getElementById("tx-list");
+        if (!txs.length) {
+          el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No transactions yet.</p></div>`;
+          return;
+        }
+        el.innerHTML = txs
+          .map((t) => {
+            const pos = t.amount >= 0;
+            const sign = pos ? "+" : "";
+            return `
           <div class="tx-item">
             <div class="tx-info">
-              <div class="tx-memo">${escape(t.memo) || '—'}</div>
+              <div class="tx-memo">${escape(t.memo) || "—"}</div>
               <div class="tx-meta">
                 <span class="tx-date">${t.date}</span>
                 <span class="tx-badge badge-${t.category}">${LABELS[t.category]}</span>
               </div>
             </div>
-            <span class="tx-amount ${pos ? 'pos' : 'neg'}">${sign}${t.amount.toFixed(2)}</span>
+            <span class="tx-amount ${pos ? "pos" : "neg"}">${sign}${t.amount.toFixed(2)}</span>
             <button class="tx-del" onclick="deleteTx(${t.id})" title="Delete">🗑</button>
           </div>`;
-      }).join('');
-    }
-
-    function escape(str) {
-      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
-
-    function openModal() {
-      document.getElementById('overlay').classList.add('open');
-    }
-
-    function closeModal() {
-      document.getElementById('overlay').classList.remove('open');
-    }
-
-    function maybeClose(e) {
-      if (e.target.id === 'overlay') closeModal();
-    }
-
-    async function submitTx(e) {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kid_id: Number(kidId),
-          category: fd.get('category'),
-          amount: parseFloat(fd.get('amount')),
-          memo: fd.get('memo') || '',
-          date: fd.get('date')
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert('Save failed: ' + (err.error ?? res.status));
-        return;
+          })
+          .join("");
       }
-      closeModal();
-      e.target.reset();
-      document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('sel'));
-      document.querySelector('.cat-btn[data-cat="chore"]').classList.add('sel');
-      document.querySelector('[name="category"]').value = 'chore';
-      document.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
-      load();
-    }
 
-    async function deleteTx(id) {
-      if (!confirm('Delete this transaction?')) return;
-      const res = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
-      if (!res.ok) { alert('Delete failed: ' + res.status); return; }
-      load();
-    }
+      function escape(str) {
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
 
-    load();
-  </script>
-</body>
+      function openModal() {
+        document.getElementById("overlay").classList.add("open");
+      }
+
+      function closeModal() {
+        document.getElementById("overlay").classList.remove("open");
+      }
+
+      function maybeClose(e) {
+        if (e.target.id === "overlay") closeModal();
+      }
+
+      async function submitTx(e) {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const res = await fetch("/api/transactions", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            kid_id: Number(kidId),
+            category: fd.get("category"),
+            amount: parseFloat(fd.get("amount")),
+            memo: fd.get("memo") || "",
+            date: fd.get("date"),
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert("Save failed: " + (err.error ?? res.status));
+          return;
+        }
+        closeModal();
+        e.target.reset();
+        document.querySelectorAll(".cat-btn").forEach((b) => b.classList.remove("sel"));
+        document.querySelector('.cat-btn[data-cat="chore"]').classList.add("sel");
+        document.querySelector('[name="category"]').value = "chore";
+        document.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
+        load();
+      }
+
+      async function deleteTx(id) {
+        if (!confirm("Delete this transaction?")) return;
+        const res = await fetch(`/api/transactions/${id}`, {method: "DELETE"});
+        if (!res.ok) {
+          alert("Delete failed: " + res.status);
+          return;
+        }
+        load();
+      }
+
+      load();
+    </script>
+  </body>
 </html>
