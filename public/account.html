@@ -84,6 +84,10 @@
         document.querySelectorAll(".cat-btn").forEach((b) => b.classList.remove("sel"));
         btn.classList.add("sel");
         document.querySelector('[name="category"]').value = btn.dataset.cat;
+        if (btn.dataset.cat === "pocket_money") {
+          document.querySelector('[name="amount"]').value = "1";
+          document.querySelector('[name="memo"]').value = "daily";
+        }
       });
 
       const params = new URLSearchParams(location.search);
