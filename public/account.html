@@ -14,7 +14,7 @@
     <header class="header" id="hdr">
       <a href="/" class="back">←</a>
       <h1 id="hdr-title">Account</h1>
-      <button class="action" onclick="openModal()">+ Add</button>
+      <button class="action" id="add-transaction" onclick="openModal()" hidden>+ Add</button>
     </header>
 
     <div class="acct-info" id="acct-info">
@@ -69,6 +69,7 @@
       </div>
     </div>
 
+    <script src="/identity.js"></script>
     <script>
       const LABELS = {
         chore: "Chore",
@@ -87,14 +88,31 @@
 
       const params = new URLSearchParams(location.search);
       const kidId = params.get("id");
+      let isAdmin = false;
       if (!kidId) location.href = "/";
 
       document.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
 
       async function load() {
-        const [kidsRes, txRes] = await Promise.all([fetch("/api/kids"), fetch(`/api/transactions?kid_id=${kidId}`)]);
-        const kids = await kidsRes.json();
-        const txs = await txRes.json();
+        const el = document.getElementById("tx-list");
+        let kids;
+        let txs;
+        try {
+          const [identity, kidsRes, txRes] = await Promise.all([
+            PocketMoneyIdentity.fetchIdentity(),
+            fetch("/api/kids"),
+            fetch(`/api/transactions?kid_id=${kidId}`),
+          ]);
+          if (!kidsRes.ok) throw new Error(`/api/kids returned ${kidsRes.status}`);
+          if (!txRes.ok) throw new Error(`/api/transactions returned ${txRes.status}`);
+          isAdmin = await PocketMoneyIdentity.isAdmin(identity);
+          kids = await kidsRes.json();
+          txs = await txRes.json();
+          document.getElementById("add-transaction").hidden = !isAdmin;
+        } catch (error) {
+          el.textContent = error.message;
+          return;
+        }
 
         const kid = kids.find((k) => String(k.id) === String(kidId));
         if (!kid) {
@@ -113,7 +131,6 @@
         balEl.textContent = (b >= 0 ? "+" : "") + b.toFixed(2);
         balEl.className = "bal " + (b > 0 ? "pos" : b < 0 ? "neg" : "zero");
 
-        const el = document.getElementById("tx-list");
         if (!txs.length) {
           el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No transactions yet.</p></div>`;
           return;
@@ -132,7 +149,7 @@
               </div>
             </div>
             <span class="tx-amount ${pos ? "pos" : "neg"}">${sign}${t.amount.toFixed(2)}</span>
-            <button class="tx-del" onclick="deleteTx(${t.id})" title="Delete">🗑</button>
+            ${isAdmin ? `<button class="tx-del" onclick="deleteTx(${t.id})" title="Delete">🗑</button>` : ""}
           </div>`;
           })
           .join("");

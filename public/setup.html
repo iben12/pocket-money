@@ -14,10 +14,11 @@
     <header class="header">
       <a href="/" class="back">←</a>
       <h1>Manage Kids</h1>
-      <button class="action" onclick="openModal()">+ Add</button>
+      <button class="action" id="add-kid" onclick="openModal()" hidden>+ Add</button>
     </header>
 
     <div class="content">
+      <p class="empty" id="read-only" hidden>Read-only access. Only an admin can manage kids.</p>
       <div id="list"></div>
     </div>
 
@@ -45,6 +46,7 @@
       </div>
     </div>
 
+    <script src="/identity.js"></script>
     <script>
       const EMOJIS = ["😊", "😎", "🐱", "🐶", "🦊", "🐼", "🦁", "🐸", "🌟", "🚀", "🎮", "🎨", "🏆", "🦄", "⚽"];
       const COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ef4444", "#14b8a6"];
@@ -52,6 +54,7 @@
       let selectedEmoji = EMOJIS[0];
       let selectedColor = COLORS[0];
       let kidsMap = {};
+      let isAdmin = false;
 
       // Build pickers
       const ep = document.getElementById("emoji-picker");
@@ -86,27 +89,38 @@
       setColor(COLORS[0]);
 
       async function load() {
-        const res = await fetch("/api/kids");
-        const kids = await res.json();
-        kidsMap = Object.fromEntries(kids.map((k) => [k.id, k]));
-
         const el = document.getElementById("list");
-        if (!kids.length) {
-          el.innerHTML = `<div class="empty"><div class="icon">👶</div><p>No kids yet. Hit <strong>+ Add</strong> to create one.</p></div>`;
-          return;
+        try {
+          const [identity, kidsRes] = await Promise.all([
+            PocketMoneyIdentity.fetchIdentity(),
+            fetch("/api/kids"),
+          ]);
+          if (!kidsRes.ok) throw new Error(`/api/kids returned ${kidsRes.status}`);
+          isAdmin = await PocketMoneyIdentity.isAdmin(identity);
+          const kids = await kidsRes.json();
+          document.getElementById("add-kid").hidden = !isAdmin;
+          document.getElementById("read-only").hidden = isAdmin;
+          kidsMap = Object.fromEntries(kids.map((k) => [k.id, k]));
+
+          if (!kids.length) {
+            el.innerHTML = `<div class="empty"><div class="icon">👶</div><p>${isAdmin ? 'No kids yet. Hit <strong>+ Add</strong> to create one.' : "No kids yet."}</p></div>`;
+            return;
+          }
+          el.innerHTML = kids
+            .map(
+              (k) => `
+          <div class="kid-item">
+            <span class="avatar">${k.avatar}</span>
+            <span class="name">${escape(k.name)}</span>
+            <span class="dot" style="background:${k.color}"></span>
+            ${isAdmin ? `<button class="icon-btn" onclick="openModal(${k.id})" title="Edit">✏️</button>
+            <button class="icon-btn" onclick="deleteKid(${k.id})" title="Delete">🗑</button>` : ""}
+          </div>`,
+            )
+            .join("");
+        } catch (error) {
+          el.textContent = error.message;
         }
-        el.innerHTML = kids
-          .map(
-            (k) => `
-        <div class="kid-item">
-          <span class="avatar">${k.avatar}</span>
-          <span class="name">${escape(k.name)}</span>
-          <span class="dot" style="background:${k.color}"></span>
-          <button class="icon-btn" onclick="openModal(${k.id})" title="Edit">✏️</button>
-          <button class="icon-btn" onclick="deleteKid(${k.id})" title="Delete">🗑</button>
-        </div>`,
-          )
-          .join("");
       }
 
       function escape(str) {

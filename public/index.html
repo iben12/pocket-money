@@ -13,44 +13,55 @@
   <body>
     <header class="header">
       <h1>💰 Pocket Money</h1>
-      <a href="setup.html" class="action">Manage Kids</a>
+      <a href="setup.html" class="action" id="manage-kids" hidden>Manage Kids</a>
     </header>
 
     <div class="content">
       <div id="list"></div>
     </div>
 
+    <script src="/identity.js"></script>
     <script>
       async function load() {
-        const res = await fetch("/api/kids");
-        const kids = await res.json();
         const el = document.getElementById("list");
+        try {
+          const [identity, kidsRes] = await Promise.all([
+            PocketMoneyIdentity.fetchIdentity(),
+            fetch("/api/kids"),
+          ]);
+          if (!kidsRes.ok) throw new Error(`/api/kids returned ${kidsRes.status}`);
+          const isAdmin = await PocketMoneyIdentity.isAdmin(identity);
+          const kids = await kidsRes.json();
+          document.getElementById("manage-kids").hidden = !isAdmin;
 
-        if (!kids.length) {
-          el.innerHTML = `
-          <div class="empty">
-            <div class="icon">🐣</div>
-            <p>No kids yet.<br><a href="setup.html">Add a kid</a> to get started.</p>
-          </div>`;
-          return;
+          if (!kids.length) {
+            el.innerHTML = `
+            <div class="empty">
+              <div class="icon">🐣</div>
+              <p>${isAdmin ? 'No kids yet.<br><a href="setup.html">Add a kid</a> to get started.' : "No kids yet."}</p>
+            </div>`;
+            return;
+          }
+
+          el.innerHTML = kids
+            .map((k) => {
+              const b = k.balance;
+              const cls = b > 0 ? "pos" : b < 0 ? "neg" : "zero";
+              const sign = b > 0 ? "+" : "";
+              return `
+            <a href="account.html?id=${k.id}" class="kid-card" style="border-left-color:${k.color}">
+              <span class="avatar">${k.avatar}</span>
+              <div class="info">
+                <div class="name">${k.name}</div>
+                <div class="label">Balance</div>
+              </div>
+              <span class="balance ${cls}">${sign}${b.toFixed(2)}</span>
+            </a>`;
+            })
+            .join("");
+        } catch (error) {
+          el.textContent = error.message;
         }
-
-        el.innerHTML = kids
-          .map((k) => {
-            const b = k.balance;
-            const cls = b > 0 ? "pos" : b < 0 ? "neg" : "zero";
-            const sign = b > 0 ? "+" : "";
-            return `
-          <a href="account.html?id=${k.id}" class="kid-card" style="border-left-color:${k.color}">
-            <span class="avatar">${k.avatar}</span>
-            <div class="info">
-              <div class="name">${k.name}</div>
-              <div class="label">Balance</div>
-            </div>
-            <span class="balance ${cls}">${sign}${b.toFixed(2)}</span>
-          </a>`;
-          })
-          .join("");
       }
 
       load();
