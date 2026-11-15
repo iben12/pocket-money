@@ -90,6 +90,10 @@ body {
 .acct-info .name { font-size: 1.2rem; font-weight: 700; margin: 4px 0 2px; }
 .acct-info .bal-label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .acct-info .bal { font-size: 2.4rem; font-weight: 800; margin-top: 2px; }
+.earnings-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.earnings-stat { background: var(--bg); border-radius: 10px; padding: 10px 8px; }
+.earnings-label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.earnings-value { font-size: 1.2rem; font-weight: 700; margin-top: 2px; }
 
 /* ── Transactions ── */
 .tx-item {

@@ -22,6 +22,16 @@
       <div class="name" id="kid-name"></div>
       <div class="bal-label">Balance</div>
       <div class="bal" id="kid-bal"></div>
+      <div class="earnings-stats" aria-label="Earnings summary">
+        <div class="earnings-stat">
+          <div class="earnings-label">Earned this week</div>
+          <div class="earnings-value" id="earned-this-week">0.00</div>
+        </div>
+        <div class="earnings-stat">
+          <div class="earnings-label">Earned last week</div>
+          <div class="earnings-value" id="earned-last-week">0.00</div>
+        </div>
+      </div>
     </div>
 
     <div class="content">
@@ -95,7 +105,33 @@
       let isAdmin = false;
       if (!kidId) location.href = "/";
 
-      document.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
+      function formatLocalDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function getWeekStart(date) {
+        return new Date(
+          date.getFullYear(),
+          date.getMonth(),
+          date.getDate() - ((date.getDay() + 6) % 7),
+        );
+      }
+
+      function sumEarningsInRange(transactions, start, end) {
+        const startDate = formatLocalDate(start);
+        const endDate = formatLocalDate(end);
+        return transactions.reduce((total, transaction) => {
+          const isIncome = transaction.category === "chore" || transaction.category === "pocket_money";
+          return isIncome && transaction.date >= startDate && transaction.date < endDate
+            ? total + transaction.amount
+            : total;
+        }, 0);
+      }
+
+      document.querySelector('[name="date"]').value = formatLocalDate(new Date());
 
       async function load() {
         const el = document.getElementById("tx-list");
@@ -134,6 +170,16 @@
         const balEl = document.getElementById("kid-bal");
         balEl.textContent = (b >= 0 ? "+" : "") + b.toFixed(2);
         balEl.className = "bal " + (b > 0 ? "pos" : b < 0 ? "neg" : "zero");
+
+        const thisWeekStart = getWeekStart(new Date());
+        const lastWeekStart = new Date(thisWeekStart);
+        lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+        const nextWeekStart = new Date(thisWeekStart);
+        nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+        document.getElementById("earned-this-week").textContent =
+          sumEarningsInRange(txs, thisWeekStart, nextWeekStart).toFixed(2);
+        document.getElementById("earned-last-week").textContent =
+          sumEarningsInRange(txs, lastWeekStart, thisWeekStart).toFixed(2);
 
         if (!txs.length) {
           el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No transactions yet.</p></div>`;
@@ -199,7 +245,7 @@
         document.querySelectorAll(".cat-btn").forEach((b) => b.classList.remove("sel"));
         document.querySelector('.cat-btn[data-cat="chore"]').classList.add("sel");
         document.querySelector('[name="category"]').value = "chore";
-        document.querySelector('[name="date"]').value = new Date().toISOString().slice(0, 10);
+        document.querySelector('[name="date"]').value = formatLocalDate(new Date());
         load();
       }
 
