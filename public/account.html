@@ -8,7 +8,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="style.css?v=2" />
   </head>
   <body>
     <header class="header" id="hdr">
@@ -22,7 +22,7 @@
       <div class="name" id="kid-name"></div>
       <div class="bal-label">Balance</div>
       <div class="bal" id="kid-bal"></div>
-      <div class="earnings-stats" aria-label="Earnings summary">
+      <div class="earnings-stats" id="earnings-stats" aria-label="Earnings summary" hidden>
         <div class="earnings-stat">
           <div class="earnings-label">Earned this week</div>
           <div class="earnings-value" id="earned-this-week">0.00</div>
@@ -135,6 +135,8 @@
 
       async function load() {
         const el = document.getElementById("tx-list");
+        const earningsStats = document.getElementById("earnings-stats");
+        earningsStats.hidden = true;
         let kids;
         let txs;
         try {
@@ -183,26 +185,27 @@
 
         if (!txs.length) {
           el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No transactions yet.</p></div>`;
-          return;
-        }
-        el.innerHTML = txs
-          .map((t) => {
-            const pos = t.amount >= 0;
-            const sign = pos ? "+" : "";
-            return `
-          <div class="tx-item">
-            <div class="tx-info">
-              <div class="tx-memo">${escape(t.memo) || "—"}</div>
-              <div class="tx-meta">
-                <span class="tx-date">${t.date}</span>
-                <span class="tx-badge badge-${t.category}">${LABELS[t.category]}</span>
+        } else {
+          el.innerHTML = txs
+            .map((t) => {
+              const pos = t.amount >= 0;
+              const sign = pos ? "+" : "";
+              return `
+            <div class="tx-item">
+              <div class="tx-info">
+                <div class="tx-memo">${escape(t.memo) || "—"}</div>
+                <div class="tx-meta">
+                  <span class="tx-date">${t.date}</span>
+                  <span class="tx-badge badge-${t.category}">${LABELS[t.category]}</span>
+                </div>
               </div>
-            </div>
-            <span class="tx-amount ${pos ? "pos" : "neg"}">${sign}${t.amount.toFixed(2)}</span>
-            ${isAdmin ? `<button class="tx-del" onclick="deleteTx(${t.id})" title="Delete">🗑</button>` : ""}
-          </div>`;
-          })
-          .join("");
+              <span class="tx-amount ${pos ? "pos" : "neg"}">${sign}${t.amount.toFixed(2)}</span>
+              ${isAdmin ? `<button class="tx-del" onclick="deleteTx(${t.id})" title="Delete">🗑</button>` : ""}
+            </div>`;
+            })
+            .join("");
+        }
+        earningsStats.hidden = false;
       }
 
       function escape(str) {
