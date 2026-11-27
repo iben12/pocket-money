@@ -8,12 +8,13 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=2" />
+    <link rel="stylesheet" href="style.css?v=3" />
   </head>
   <body>
     <header class="header" id="hdr">
       <a href="/" class="back">←</a>
       <h1 id="hdr-title">Account</h1>
+      <button class="action" id="print-btn" onclick="window.print()" title="Print report">🖨 Print</button>
       <button class="action" id="add-transaction" onclick="openModal()" hidden>+ Add</button>
     </header>
 
@@ -36,6 +37,40 @@
 
     <div class="content">
       <div id="tx-list"></div>
+    </div>
+
+    <!-- Print-only one-page report (this week + last week) -->
+    <div class="print-report" id="print-report">
+      <div class="print-head">
+        <div class="print-title" id="print-name"></div>
+        <div class="print-sub">Transactions — this week &amp; last week</div>
+      </div>
+      <div class="print-summary">
+        <div class="print-stat">
+          <span class="ps-label">Earned this week</span>
+          <span class="ps-val" id="print-week"></span>
+        </div>
+        <div class="print-stat">
+          <span class="ps-label">Earned last week</span>
+          <span class="ps-val" id="print-last-week"></span>
+        </div>
+        <div class="print-stat">
+          <span class="ps-label">Balance</span>
+          <span class="ps-val" id="print-bal"></span>
+        </div>
+      </div>
+      <table class="print-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Category</th>
+            <th>Memo</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody id="print-rows"></tbody>
+      </table>
+      <div class="print-foot" id="print-foot"></div>
     </div>
 
     <!-- Add transaction modal -->
@@ -112,6 +147,17 @@
         return `${year}-${month}-${day}`;
       }
 
+      // "Thu, Nov 27" — weekday + month/day, no year. Parsed as a local date
+      // so a YYYY-MM-DD string isn't shifted by the UTC-midnight interpretation.
+      function formatReportDate(dateStr) {
+        const [year, month, day] = dateStr.split("-").map(Number);
+        return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        });
+      }
+
       function getWeekStart(date) {
         return new Date(
           date.getFullYear(),
@@ -178,10 +224,10 @@
         lastWeekStart.setDate(lastWeekStart.getDate() - 7);
         const nextWeekStart = new Date(thisWeekStart);
         nextWeekStart.setDate(nextWeekStart.getDate() + 7);
-        document.getElementById("earned-this-week").textContent =
-          sumEarningsInRange(txs, thisWeekStart, nextWeekStart).toFixed(2);
-        document.getElementById("earned-last-week").textContent =
-          sumEarningsInRange(txs, lastWeekStart, thisWeekStart).toFixed(2);
+        const earnedThisWeek = sumEarningsInRange(txs, thisWeekStart, nextWeekStart);
+        const earnedLastWeek = sumEarningsInRange(txs, lastWeekStart, thisWeekStart);
+        document.getElementById("earned-this-week").textContent = earnedThisWeek.toFixed(2);
+        document.getElementById("earned-last-week").textContent = earnedLastWeek.toFixed(2);
 
         if (!txs.length) {
           el.innerHTML = `<div class="empty"><div class="icon">📋</div><p>No transactions yet.</p></div>`;
@@ -205,7 +251,42 @@
             })
             .join("");
         }
+        renderPrintReport(kid, b, earnedThisWeek, earnedLastWeek, txs, lastWeekStart, nextWeekStart);
         earningsStats.hidden = false;
+      }
+
+      // Builds the print-only report: name, the two earnings figures, balance,
+      // and a compact table limited to this week + last week so it fits one page.
+      function renderPrintReport(kid, balance, thisWeek, lastWeek, txs, lastWeekStart, nextWeekStart) {
+        document.getElementById("print-name").textContent = kid.name;
+        document.getElementById("print-week").textContent = thisWeek.toFixed(2);
+        document.getElementById("print-last-week").textContent = lastWeek.toFixed(2);
+        const balEl = document.getElementById("print-bal");
+        balEl.textContent = (balance >= 0 ? "+" : "") + balance.toFixed(2);
+        balEl.className = "ps-val " + (balance > 0 ? "pos" : balance < 0 ? "neg" : "");
+
+        const from = formatLocalDate(lastWeekStart);
+        const to = formatLocalDate(nextWeekStart);
+        const rows = txs.filter((t) => t.date >= from && t.date < to);
+        const body = document.getElementById("print-rows");
+        if (!rows.length) {
+          body.innerHTML = `<tr><td colspan="4" class="print-none">No transactions this week or last week.</td></tr>`;
+        } else {
+          body.innerHTML = rows
+            .map((t) => {
+              const pos = t.amount >= 0;
+              const sign = pos ? "+" : "";
+              return `<tr>
+                <td>${formatReportDate(t.date)}</td>
+                <td>${LABELS[t.category]}</td>
+                <td>${escape(t.memo) || "—"}</td>
+                <td class="num ${pos ? "pos" : "neg"}">${sign}${t.amount.toFixed(2)}</td>
+              </tr>`;
+            })
+            .join("");
+        }
+        document.getElementById("print-foot").textContent =
+          "Printed " + formatReportDate(formatLocalDate(new Date()));
       }
 
       function escape(str) {
