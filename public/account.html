@@ -14,7 +14,7 @@
     <header class="header" id="hdr">
       <a href="/" class="back">←</a>
       <h1 id="hdr-title">Account</h1>
-      <button class="action" id="print-btn" onclick="window.print()" title="Print report">🖨 Print</button>
+      <button class="action" id="print-btn" onclick="printReport()" title="Print report">🖨 Print</button>
       <button class="action" id="add-transaction" onclick="openModal()" hidden>+ Add</button>
     </header>
 
@@ -138,6 +138,7 @@
       const params = new URLSearchParams(location.search);
       const kidId = params.get("id");
       let isAdmin = false;
+      let reportData = null;
       if (!kidId) location.href = "/";
 
       function formatLocalDate(date) {
@@ -257,36 +258,226 @@
 
       // Builds the print-only report: name, the two earnings figures, balance,
       // and a compact table limited to this week + last week so it fits one page.
+      // Also stashes the same data in `reportData` for the canvas/share path.
       function renderPrintReport(kid, balance, thisWeek, lastWeek, txs, lastWeekStart, nextWeekStart) {
-        document.getElementById("print-name").textContent = kid.name;
-        document.getElementById("print-week").textContent = thisWeek.toFixed(2);
-        document.getElementById("print-last-week").textContent = lastWeek.toFixed(2);
-        const balEl = document.getElementById("print-bal");
-        balEl.textContent = (balance >= 0 ? "+" : "") + balance.toFixed(2);
-        balEl.className = "ps-val " + (balance > 0 ? "pos" : balance < 0 ? "neg" : "");
-
         const from = formatLocalDate(lastWeekStart);
         const to = formatLocalDate(nextWeekStart);
-        const rows = txs.filter((t) => t.date >= from && t.date < to);
+        const rows = txs
+          .filter((t) => t.date >= from && t.date < to)
+          .map((t) => {
+            const pos = t.amount >= 0;
+            return {
+              date: formatReportDate(t.date),
+              category: LABELS[t.category],
+              memo: t.memo || "—",
+              amount: (pos ? "+" : "") + t.amount.toFixed(2),
+              pos,
+            };
+          });
+        reportData = {
+          name: kid.name,
+          thisWeek: thisWeek.toFixed(2),
+          lastWeek: lastWeek.toFixed(2),
+          balance: (balance >= 0 ? "+" : "") + balance.toFixed(2),
+          balanceSign: balance > 0 ? "pos" : balance < 0 ? "neg" : "",
+          rows,
+          printed: "Printed " + formatReportDate(formatLocalDate(new Date())),
+        };
+
+        document.getElementById("print-name").textContent = reportData.name;
+        document.getElementById("print-week").textContent = reportData.thisWeek;
+        document.getElementById("print-last-week").textContent = reportData.lastWeek;
+        const balEl = document.getElementById("print-bal");
+        balEl.textContent = reportData.balance;
+        balEl.className = "ps-val " + reportData.balanceSign;
+
         const body = document.getElementById("print-rows");
         if (!rows.length) {
           body.innerHTML = `<tr><td colspan="4" class="print-none">No transactions this week or last week.</td></tr>`;
         } else {
           body.innerHTML = rows
-            .map((t) => {
-              const pos = t.amount >= 0;
-              const sign = pos ? "+" : "";
-              return `<tr>
-                <td>${formatReportDate(t.date)}</td>
-                <td>${LABELS[t.category]}</td>
-                <td>${escape(t.memo) || "—"}</td>
-                <td class="num ${pos ? "pos" : "neg"}">${sign}${t.amount.toFixed(2)}</td>
-              </tr>`;
-            })
+            .map(
+              (r) => `<tr>
+                <td>${escape(r.date)}</td>
+                <td>${escape(r.category)}</td>
+                <td>${escape(r.memo)}</td>
+                <td class="num ${r.pos ? "pos" : "neg"}">${escape(r.amount)}</td>
+              </tr>`,
+            )
             .join("");
         }
-        document.getElementById("print-foot").textContent =
-          "Printed " + formatReportDate(formatLocalDate(new Date()));
+        document.getElementById("print-foot").textContent = reportData.printed;
+      }
+
+      // iOS home-screen web apps can't reach Share → Print and window.print()
+      // is a no-op there, so render the report to an image and hand it to the
+      // native share sheet (Print / Save to Photos). Everywhere else, use
+      // window.print() with the @media print layout directly.
+      // The file is built synchronously so navigator.share() stays within the
+      // click's user-activation window (iOS rejects it otherwise).
+      function printReport() {
+        if (!reportData) return;
+        const isIosStandalone = navigator.standalone === true;
+        if (!isIosStandalone || typeof navigator.canShare !== "function") {
+          window.print();
+          return;
+        }
+        let file;
+        try {
+          file = buildReportImageFile();
+        } catch (err) {
+          console.error("Could not build report image", err);
+          window.print();
+          return;
+        }
+        if (file && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: `${reportData.name} — pocket money` }).catch((err) => {
+            if (err && err.name === "AbortError") return; // user dismissed the sheet
+            console.error("Share failed", err);
+          });
+          return;
+        }
+        window.print();
+      }
+
+      function buildReportImageFile() {
+        const dataUrl = drawReportCanvas().toDataURL("image/png");
+        const bin = atob(dataUrl.split(",")[1]);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const safeName = reportData.name.replace(/[^\w.-]+/g, "_") || "kid";
+        return new File([bytes], `${safeName}-pocket-money.png`, { type: "image/png" });
+      }
+
+      function truncate(ctx, text, maxWidth) {
+        if (ctx.measureText(text).width <= maxWidth) return text;
+        let t = text;
+        while (t.length > 1 && ctx.measureText(t + "…").width > maxWidth) {
+          t = t.slice(0, -1);
+        }
+        return t + "…";
+      }
+
+      // Draws the one-page report onto a canvas (supersampled for crisp print
+      // output) that mirrors the @media print layout.
+      function drawReportCanvas() {
+        const S = 2; // supersample
+        const W = 620;
+        const M = 28;
+        const rowH = 26;
+        const rows = reportData.rows;
+        const bodyRows = rows.length || 1;
+        const H = 254 + bodyRows * rowH;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = W * S;
+        canvas.height = H * S;
+        const ctx = canvas.getContext("2d");
+        ctx.scale(S, S);
+        const sans = "-apple-system, system-ui, 'Segoe UI', sans-serif";
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, W, H);
+
+        let y = M + 26;
+        // Title + subtitle
+        ctx.fillStyle = "#000000";
+        ctx.font = `800 26px ${sans}`;
+        ctx.fillText(reportData.name, M, y);
+        ctx.font = `500 12px ${sans}`;
+        ctx.fillStyle = "#444444";
+        ctx.textAlign = "right";
+        ctx.fillText("Transactions — this week & last week", W - M, y);
+        ctx.textAlign = "left";
+        y += 14;
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(M, y);
+        ctx.lineTo(W - M, y);
+        ctx.stroke();
+        y += 30;
+
+        // Summary stats
+        const stats = [
+          { label: "EARNED THIS WEEK", value: reportData.thisWeek, color: "#047857" },
+          { label: "EARNED LAST WEEK", value: reportData.lastWeek, color: "#047857" },
+          {
+            label: "BALANCE",
+            value: reportData.balance,
+            color: reportData.balanceSign === "neg" ? "#b91c1c" : reportData.balanceSign === "pos" ? "#047857" : "#000000",
+          },
+        ];
+        const colW = (W - 2 * M) / 3;
+        stats.forEach((s, i) => {
+          const x = M + i * colW;
+          ctx.font = `600 10px ${sans}`;
+          ctx.fillStyle = "#555555";
+          ctx.fillText(s.label, x, y);
+          ctx.font = `700 20px ${sans}`;
+          ctx.fillStyle = s.color;
+          ctx.fillText(s.value, x, y + 24);
+        });
+        y += 54;
+
+        // Table
+        const xDate = M;
+        const xCat = M + 110;
+        const xMemo = M + 230;
+        const xAmt = W - M;
+        const memoMax = xAmt - 70 - xMemo;
+
+        ctx.font = `700 10px ${sans}`;
+        ctx.fillStyle = "#555555";
+        ctx.fillText("DATE", xDate, y);
+        ctx.fillText("CATEGORY", xCat, y);
+        ctx.fillText("MEMO", xMemo, y);
+        ctx.textAlign = "right";
+        ctx.fillText("AMOUNT", xAmt, y);
+        ctx.textAlign = "left";
+        y += 8;
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(M, y);
+        ctx.lineTo(W - M, y);
+        ctx.stroke();
+        y += rowH - 8;
+
+        if (!rows.length) {
+          ctx.font = `400 13px ${sans}`;
+          ctx.fillStyle = "#777777";
+          ctx.textAlign = "center";
+          ctx.fillText("No transactions this week or last week.", W / 2, y);
+          ctx.textAlign = "left";
+        } else {
+          rows.forEach((r) => {
+            ctx.font = `400 13px ${sans}`;
+            ctx.fillStyle = "#111111";
+            ctx.fillText(r.date, xDate, y);
+            ctx.fillText(r.category, xCat, y);
+            ctx.fillText(truncate(ctx, r.memo, memoMax), xMemo, y);
+            ctx.font = `600 13px ${sans}`;
+            ctx.fillStyle = r.pos ? "#047857" : "#b91c1c";
+            ctx.textAlign = "right";
+            ctx.fillText(r.amount, xAmt, y);
+            ctx.textAlign = "left";
+            ctx.strokeStyle = "#dddddd";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(M, y + 8);
+            ctx.lineTo(W - M, y + 8);
+            ctx.stroke();
+            y += rowH;
+          });
+        }
+
+        y += 16;
+        ctx.font = `400 10px ${sans}`;
+        ctx.fillStyle = "#888888";
+        ctx.fillText(reportData.printed, M, y);
+
+        return canvas;
       }
 
       function escape(str) {
