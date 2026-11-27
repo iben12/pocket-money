@@ -43,7 +43,7 @@
     <div class="print-report" id="print-report">
       <div class="print-head">
         <div class="print-title" id="print-name"></div>
-        <div class="print-sub">Transactions — this week &amp; last week</div>
+        <div class="print-sub">Recent transactions</div>
       </div>
       <div class="print-summary">
         <div class="print-stat">
@@ -253,30 +253,29 @@
             })
             .join("");
         }
-        renderPrintReport(kid, b, earnedThisWeek, earnedLastWeek, txs, lastWeekStart, nextWeekStart);
+        renderPrintReport(kid, b, earnedThisWeek, earnedLastWeek, txs);
         earningsStats.hidden = false;
       }
 
       // Builds the print-only report: name, the two earnings figures, balance,
-      // and a compact table limited to this week + last week so it fits one page.
+      // and a compact table of the most recent transactions so it fits one page.
       // Also stashes the same data in `reportData` for the canvas/share path.
-      function renderPrintReport(kid, balance, thisWeek, lastWeek, txs, lastWeekStart, nextWeekStart) {
-        const from = formatLocalDate(lastWeekStart);
-        const to = formatLocalDate(nextWeekStart);
-        const rows = txs
-          .filter((t) => t.date >= from && t.date < to)
-          .map((t) => {
-            const pos = t.amount >= 0;
-            return {
-              date: formatReportDate(t.date),
-              category: LABELS[t.category],
-              memo: t.memo || "—",
-              amount: (pos ? "+" : "") + t.amount.toFixed(2),
-              pos,
-            };
-          });
+      const PRINT_MAX_ROWS = 25;
+
+      function renderPrintReport(kid, balance, thisWeek, lastWeek, txs) {
+        const rows = txs.slice(0, PRINT_MAX_ROWS).map((t) => {
+          const pos = t.amount >= 0;
+          return {
+            date: formatReportDate(t.date),
+            category: LABELS[t.category],
+            memo: t.memo || "—",
+            amount: (pos ? "+" : "") + t.amount.toFixed(2),
+            pos,
+          };
+        });
         reportData = {
           name: kid.name,
+          avatar: kid.avatar || "",
           thisWeek: thisWeek.toFixed(2),
           lastWeek: lastWeek.toFixed(2),
           balance: (balance >= 0 ? "+" : "") + balance.toFixed(2),
@@ -285,7 +284,8 @@
           printed: "Printed " + formatReportDate(formatLocalDate(new Date())),
         };
 
-        document.getElementById("print-name").textContent = reportData.name;
+        document.getElementById("print-name").textContent =
+          (reportData.avatar ? reportData.avatar + " " : "") + reportData.name;
         document.getElementById("print-week").textContent = reportData.thisWeek;
         document.getElementById("print-last-week").textContent = reportData.lastWeek;
         const balEl = document.getElementById("print-bal");
@@ -294,7 +294,7 @@
 
         const body = document.getElementById("print-rows");
         if (!rows.length) {
-          body.innerHTML = `<tr><td colspan="4" class="print-none">No transactions this week or last week.</td></tr>`;
+          body.innerHTML = `<tr><td colspan="4" class="print-none">No transactions yet.</td></tr>`;
         } else {
           body.innerHTML = rows
             .map(
@@ -397,14 +397,20 @@
         ctx.fillRect(0, 0, W, H);
 
         let y = M + 26;
-        // Title + subtitle
+        // Title (avatar + name) + subtitle
         ctx.fillStyle = "#000000";
+        let nameX = M;
+        if (reportData.avatar) {
+          ctx.font = `24px ${sans}`;
+          ctx.fillText(reportData.avatar, M, y);
+          nameX = M + ctx.measureText(reportData.avatar).width + 10;
+        }
         ctx.font = `800 26px ${sans}`;
-        ctx.fillText(reportData.name, M, y);
+        ctx.fillText(reportData.name, nameX, y);
         ctx.font = `500 12px ${sans}`;
         ctx.fillStyle = "#444444";
         ctx.textAlign = "right";
-        ctx.fillText("Transactions — this week & last week", W - M, y);
+        ctx.fillText("Recent transactions", W - M, y);
         ctx.textAlign = "left";
         y += 14;
         ctx.strokeStyle = "#000000";
@@ -465,7 +471,7 @@
           ctx.font = `400 13px ${sans}`;
           ctx.fillStyle = "#777777";
           ctx.textAlign = "center";
-          ctx.fillText("No transactions this week or last week.", W / 2, y);
+          ctx.fillText("No transactions yet.", W / 2, y);
           ctx.textAlign = "left";
         } else {
           rows.forEach((r) => {
