@@ -115,6 +115,7 @@
     </div>
 
     <script src="/identity.js"></script>
+    <script src="/vendor/jspdf.umd.min.js"></script>
     <script>
       const LABELS = {
         chore: "Chore",
@@ -310,8 +311,8 @@
       }
 
       // iOS home-screen web apps can't reach Share → Print and window.print()
-      // is a no-op there, so render the report to an image and hand it to the
-      // native share sheet (Print / Save to Photos). Everywhere else, use
+      // is a no-op there, so render the report to a PDF and hand it to the
+      // native share sheet (Print / Save to Files). Everywhere else, use
       // window.print() with the @media print layout directly.
       // The file is built synchronously so navigator.share() stays within the
       // click's user-activation window (iOS rejects it otherwise).
@@ -324,9 +325,9 @@
         }
         let file;
         try {
-          file = buildReportImageFile();
+          file = buildReportPdfFile();
         } catch (err) {
-          console.error("Could not build report image", err);
+          console.error("Could not build report PDF", err);
           window.print();
           return;
         }
@@ -340,13 +341,29 @@
         window.print();
       }
 
-      function buildReportImageFile() {
-        const dataUrl = drawReportCanvas().toDataURL("image/png");
-        const bin = atob(dataUrl.split(",")[1]);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      // Wraps the canvas report in a one-page PDF. A PDF (vs a bare image) makes
+      // iOS print it as a document — normal quality — instead of photo/best. The
+      // canvas keeps full Unicode (ő/ű, emoji) that jsPDF's built-in fonts lack.
+      function buildReportPdfFile() {
+        const { jsPDF } = window.jspdf;
+        const canvas = drawReportCanvas();
+        const imgData = canvas.toDataURL("image/png");
+        const doc = new jsPDF({ unit: "pt", format: "a4" });
+        const M = 28;
+        const maxW = doc.internal.pageSize.getWidth() - 2 * M;
+        const maxH = doc.internal.pageSize.getHeight() - 2 * M;
+        const ratio = canvas.height / canvas.width;
+        let w = maxW;
+        let h = w * ratio;
+        if (h > maxH) {
+          h = maxH;
+          w = h / ratio;
+        }
+        doc.addImage(imgData, "PNG", M, M, w, h, undefined, "FAST");
         const safeName = reportData.name.replace(/[^\w.-]+/g, "_") || "kid";
-        return new File([bytes], `${safeName}-pocket-money.png`, { type: "image/png" });
+        return new File([doc.output("blob")], `${safeName}-pocket-money.pdf`, {
+          type: "application/pdf",
+        });
       }
 
       function truncate(ctx, text, maxWidth) {
@@ -358,10 +375,10 @@
         return t + "…";
       }
 
-      // Draws the one-page report onto a canvas (supersampled for crisp print
-      // output) that mirrors the @media print layout.
+      // Draws the one-page report onto a canvas (supersampled for crisp output),
+      // mirroring the @media print layout. Used as the PDF's page image.
       function drawReportCanvas() {
-        const S = 2; // supersample
+        const S = 3; // supersample
         const W = 620;
         const M = 28;
         const rowH = 26;
